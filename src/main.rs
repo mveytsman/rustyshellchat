@@ -8,13 +8,15 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
 struct Clients {
-    clients: HashMap<u16, u16>,
+    clients: HashMap<u16, Sender<ServerMessage>>,
 }
 
-enum Message {
-    Joined(u16),
+enum ClientMessage {
+    Joined(u16, Sender<ServerMessage>),
     Left(u16),
 }
+
+type ServerMessage = ClientMessage; // for now
 
 impl Clients {
     fn new() -> Clients {
@@ -22,8 +24,11 @@ impl Clients {
             clients: HashMap::new(),
         }
     }
-    fn add(mut self, id: u16, channel: u16) {
+    fn add(&mut self, id: u16, channel: Sender<ServerMessage>) {
         self.clients.insert(id, channel);
+    }
+    fn remove(&mut self, id: &u16) {
+        self.clients.remove(id).unwrap();
     }
 }
 
@@ -38,24 +43,36 @@ fn main() {
     }
 }
 
-fn server(receiver: Receiver<Message>) {
-    let clients = Clients::new();
+fn server(receiver: Receiver<ClientMessage>) {
+    let mut clients = Clients::new();
     for message in receiver {
         match message {
-            Message::Joined(id) => println!("Joined by {}", id),
-            Message::Left(id) => println!("{} left", id),
+            ClientMessage::Joined(id, sender) => {
+                clients.add(id, sender);
+                println!("Joined by {}", id);
+            }
+            ClientMessage::Left(id) => {
+                clients.remove(&id);
+                println!("{} left", id),
+            }
         }
     }
 }
 
-fn handle_client(stream: TcpStream, server_sender: Sender<Message>) {
+fn handle_client(stream: TcpStream, server_sender: Sender<ClientMessage>) {
     let client_id = stream.peer_addr().unwrap().port();
-    server_sender.send(Message::Joined(client_id)).unwrap();
+    let (client_sender, client_receiver) = channel();
+    server_sender
+        .send(ClientMessage::Joined(
+            client_id,
+            Sender::clone(&client_sender),
+        ))
+        .unwrap();
 
     for l in BufReader::new(stream).lines() {
         println!("{}", l.unwrap());
     }
-    server_sender.send(Message::Left(client_id)).unwrap();
+    server_sender.send(ClientMessage::Left(client_id)).unwrap();
 }
 
 //     {
