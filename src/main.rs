@@ -98,26 +98,3 @@ fn handle_client(stream: TcpStream, server_sender: Sender<ClientMessage>) {
     }
     server_sender.send(ClientMessage::Left(client_id)).unwrap();
 }
-
-//     {
-//     let (tx, rx) = channel();
-//     let mut handles = vec![];
-
-//     for _ in 1..10 {
-//         let tx = Sender::clone(&tx);
-//         let handle = thread::spawn(move || {
-//             tx.send("Hello").unwrap();
-//         });
-//         handles.push(handle);
-//     }
-
-//     thread::spawn(|| {
-//         for received in rx {
-//             println!("Got: {}", received);
-//         }
-//     });
-
-//     for handle in handles {
-//         handle.join().unwrap()
-//     }
-// }
